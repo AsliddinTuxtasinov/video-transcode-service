@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Streaming</title>
+</head>
+<body>
+    <h1>Upload Video for Transcoding</h1>
+    <form id="uploadForm">
+        <input type="file" id="fileInput" accept="video/*">
+        <button type="submit">Upload Video</button>
+    </form>
+    <div id="statusMessage"></div>
+    <h1>Stream Video</h1>
+    <video id="videoPlayer" width="640" height="360" controls>
+        <source id="videoSource" type="video/mp4">
+        Your browser does not support HTML5 video.
+    </video>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const statusMessage = document.getElementById('statusMessage');
+        const videoSource = document.getElementById('videoSource');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) {
+                alert('Please select a video file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const response = await fetch('http://127.0.0.1:8000/upload/', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                statusMessage.innerText = `Video uploaded. Transcoding in progress... File Hash: ${data.file_hash}`;
+                videoSource.src = `http://127.0.0.1:8000/stream/${data.file_hash}`;
+            } else {
+                statusMessage.innerText = 'Failed to upload video.';
+            }
+        });
+    </script>
+</body>
+</html>

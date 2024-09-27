@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+
+  video_transcode_service:
+    build:
+      context: ./video_transcode_service
+      dockerfile: Dockerfile
+    container_name: video_transcode_service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./video_transcode_service/uploads:/app/uploads     # Map local 'uploads' directory to container's '/app/uploads'
+      - ./video_transcode_service/transcoded:/app/transcoded # Map local 'transcoded' directory to container's '/app/transcoded'
+    environment:
+      - TRANSCODED_FOLDER=/app/transcoded
+      - UPLOAD_FOLDER=/app/uploads
+    restart: always
