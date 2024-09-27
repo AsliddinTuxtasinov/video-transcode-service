@@ -1,12 +1,22 @@
 import os
 import hashlib
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Request, HTTPException
-from fastapi.responses import StreamingResponse, Response, JSONResponse
+from fastapi import (
+    FastAPI, File, UploadFile, BackgroundTasks, Request, HTTPException, responses, middleware
+)
 import ffmpeg
 from pathlib import Path
 
 # Create FastAPI app instance
 app = FastAPI()
+
+# # Add CORS middleware
+# app.add_middleware(
+#     middleware.cors.CORSMiddleware,
+#     allow_origins=["*"],  # Allows all origins, replace with specific origins in production
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 # Directories for storing uploaded and transcoded files
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "./uploads")
@@ -15,9 +25,6 @@ TRANSCODED_FOLDER = os.getenv("TRANSCODED_FOLDER", "./transcoded")
 # Ensure directories exist
 Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True)
 Path(TRANSCODED_FOLDER).mkdir(parents=True, exist_ok=True)
-
-# Dictionary to keep track of transcoding status
-transcoding_status = {}
 
 
 def generate_file_hash(file_path: str) -> str:
@@ -31,6 +38,9 @@ def generate_file_hash(file_path: str) -> str:
 
 def transcode_video(input_file: str, output_file: str):
     """Transcode video to 720p resolution using FFmpeg."""
+    # Dictionary to keep track of transcoding status
+    transcoding_status = {}
+
     file_hash = os.path.basename(output_file).replace("transcoded_", "").replace(".mp4", "")
     transcoding_status[file_hash] = "in_progress"
     try:
@@ -56,13 +66,34 @@ async def upload_file(file: UploadFile = File(...), background_tasks: Background
     # Start transcoding in the background
     background_tasks.add_task(transcode_video, upload_path, output_file)
 
-    return JSONResponse(status_code=200,
-                        content={"message": "Video uploaded, transcoding in progress", "file_hash": file_hash})
+    return responses.JSONResponse(
+        status_code=200,
+        content={
+            "success": True,
+            "err_msg": "Video uploaded, transcoding in progress",
+            "file_hash": file_hash
+        }
+    )
+
+
+# @app.post("/upload/")
+# async def upload_file(file: UploadFile = File(...)):
+#     # Save uploaded file
+#     upload_path = os.path.join(UPLOAD_FOLDER, file.filename)
+#
+#     with open(upload_path, 'wb') as f:
+#         f.write(await file.read())
+#
+#     return responses.JSONResponse(
+#         status_code=200,
+#         content={"message": "Video uploaded successfully", "filename": file.filename}
+#     )
 
 
 @app.get("/stream/{file_hash}")
 async def stream_video(file_hash: str, request: Request):
     transcoded_file = os.path.join(TRANSCODED_FOLDER, f"transcoded_{file_hash}.mp4")
+    print(f"{transcoded_file=}")
 
     if not os.path.exists(transcoded_file):
         raise HTTPException(status_code=404, detail="File not found")
@@ -80,7 +111,7 @@ async def stream_video(file_hash: str, request: Request):
                 video_file.seek(start)
                 yield video_file.read(end - start + 1)
 
-        return StreamingResponse(
+        return responses.StreamingResponse(
             iter_file(start, end),
             status_code=206,
             headers={
@@ -92,4 +123,4 @@ async def stream_video(file_hash: str, request: Request):
         )
 
     # If no range header, stream the entire file
-    return StreamingResponse(open(transcoded_file, "rb"), media_type="video/mp4")
+    return responses.StreamingResponse(open(transcoded_file, "rb"), media_type="video/mp4")

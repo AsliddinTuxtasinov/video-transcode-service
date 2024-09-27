@@ -41,6 +41,7 @@
 
             if (response.ok) {
                 const data = await response.json();
+                console.log(data)
                 statusMessage.innerText = `Video uploaded. Transcoding in progress... File Hash: ${data.file_hash}`;
                 videoSource.src = `http://127.0.0.1:8000/stream/${data.file_hash}`;
             } else {
